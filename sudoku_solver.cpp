@@ -1,6 +1,9 @@
 // #define DEBUG           /* uncomment to show debug logs */
 // #define DEBUG_DUMP      /* dump stdout to a filde */
 
+// [experimental] some optimization techniques
+// #define OPT_ENABLE_Count_Neighbours_Variability
+
 #include <bits/stdc++.h>
 using namespace std;
 
@@ -15,6 +18,8 @@ template <typename T, size_t N> int SIZE(const T (&t)[N]){ return N; } template<
 #define dbgm(...)    while(0){}
 #define log(...)    while(0){}
 #endif
+
+
 
 typedef unsigned long mask_t;   /* type to represent bitmasks */
 int PUZZLE_LENGTH;              /* length of a side in given puzzle */
@@ -197,6 +202,7 @@ inline void updateAllowed(vector<mask_t> &puzzle, vector<mask_t> &allowed, int i
     }
 }
 
+#ifdef OPT_ENABLE_Count_Neighbours_Variability
 /**
  * Get an estimated value to represents the variability of neighbours (indices in the same row, column or block).
  * This is a estimated value to get an idea how stable if a value is set to a given index; if the return value is
@@ -233,6 +239,7 @@ inline int countNeighboursVariability(vector<mask_t> &puzzle, vector<mask_t> &al
     }
     return count;
 }
+#endif
 
 /**
  * Get the index to be filled next
@@ -240,24 +247,41 @@ inline int countNeighboursVariability(vector<mask_t> &puzzle, vector<mask_t> &al
  * @param allowed Allowed values vector
  * @return An index
  */
-inline int getToFillIndex(vector<mask_t> &puzzle, vector<mask_t> &allowed){ 
-    vector<pair<vector<int>, int>> toFillPrioritiesAndIndices;
+inline int getToFillIndex(vector<mask_t> &puzzle, vector<mask_t> &allowed){
 
+    int minAllowedCount = BLOCK_SIZE;
+#ifdef OPT_ENABLE_Count_Neighbours_Variability
+    int minNeighboursAllowedCount = -1;
+#endif
+
+    int allowedCount = -1;
+    int toFill = IDX_EMPTY;
     for(int i = 0; i < PUZZLE_SIZE; i++) {
         if(puzzle[i] == 0) {
-            vector<int> priorityScores = {
-                    countBits(allowed[i]),
-                    countNeighboursVariability(puzzle, allowed, i)
-            }; 
-            toFillPrioritiesAndIndices.emplace_back(priorityScores, i);
+            allowedCount = countBits(allowed[i]);
+            if(allowedCount == 1){
+                return i;
+            }
+            if(allowedCount < minAllowedCount){
+                toFill = i;
+                minAllowedCount = allowedCount;
+            }
+#ifdef OPT_ENABLE_Count_Neighbours_Variability
+            else if(allowedCount == minAllowedCount){
+                if(minNeighboursAllowedCount == -1){
+                    minNeighboursAllowedCount = countNeighboursVariability(puzzle, allowed, toFill);
+                }
+                int neighboursAllowedCount = countNeighboursVariability(puzzle, allowed, i);
+                if(neighboursAllowedCount < minNeighboursAllowedCount){
+                    minNeighboursAllowedCount = neighboursAllowedCount;
+                    toFill = i;
+                    minAllowedCount = allowedCount;
+                }
+            }
+#endif
         }
     }
-    if(toFillPrioritiesAndIndices.empty()){
-        return IDX_EMPTY;
-    }
-    sort(toFillPrioritiesAndIndices.begin(), toFillPrioritiesAndIndices.end());
-    dbg(toFillPrioritiesAndIndices);
-    return toFillPrioritiesAndIndices[0].second;
+    return toFill;
 }
 
 /**
